@@ -1,0 +1,159 @@
+---
+title: "Katahdin power analysis"
+format: pdf
+---
+
+## Relationship between strata and climate variables
+
+We will consider two climate variables: temperature (`tmp`) and relative humidity (`rh`). There are 16 strata and we will investigate two different scenarios:
+
+1. `tmp` and `rh` have strong linear responses to strata 
+1. `tmp` and `rh` have weaker linear responses to strata 
+
+The scenario of no linear response is unlikely given that strata were choosen to represent meaningful climatic variation.
+
+
+```{r}
+#| echo: false
+#| message: false
+
+# general set-up
+library(ggplot2)
+library(VGAM)
+library(cowplot)
+
+# helper function to generate climate data from strata
+clm_strata <- function(b_tmp, b_rh, sd, n) {
+    s <- 1:16
+    srep <- rep(s, each = n)
+    tmp <- rnorm(length(srep), b_tmp * srep, sd)
+    rh <- rnorm(length(srep), b_rh * srep, sd)
+    
+    data.frame(s = srep, tmp = scale(tmp), rh = scale(rh))
+}
+
+
+
+d1 <- clm_strata(b_tmp = 2, b_rh = -2, sd = 2, n = 4)
+d2 <- clm_strata(b_tmp = 0.5, b_rh = -0.5, sd = 2, n = 4)
+
+d1$scenario <- "strong response"
+d2$scenario <- "weaker response"
+d <- rbind(d1, d2)
+
+p_tmp <- ggplot(d, aes(x = s, y = tmp, color = s)) +
+    geom_jitter(height = 0) +
+    facet_wrap(vars(scenario), nrow = 1) +
+    scale_color_viridis_c() +
+    theme(legend.position = "none") +
+    xlab("Strata") + ylab("Scaled temperature")
+
+p_rh <- ggplot(d, aes(x = s, y = rh, color = s)) +
+    geom_jitter(height = 0) +
+    facet_wrap(vars(scenario), nrow = 1) +
+    scale_color_viridis_c() +
+    theme(legend.position = "none") +
+    xlab("Strata") + ylab("Scaled relative humidity")
+
+plot_grid(p_tmp, p_rh, nrow = 2)
+```
+
+
+
+## Power analysis for relationship between focal taxa and climate
+
+Now we investigate our statistical power to detect a response of the percent cover of a focal taxon to local climate variation.  We will assume there is an optimal climate for the taxon where its percent cover peaks as displayed in the below figure which shows an idealized response of percent cover to climate (i.e. without random noise).
+
+
+```{r}
+pfun <- function(x, b0, b1, b2) {
+    1 / (1 + exp(-(b0 + b1 * x + b2 * x^2)))
+}
+
+x <- d1$tmp
+
+ideal_response <- data.frame(s = d1$s, x = x, p = pfun(x, 0, 3, -6))
+
+ggplot(ideal_response, aes(x = x, y = p, color = s)) +
+    geom_point() +
+    scale_color_viridis_c(name = "Strata") +
+    xlab("Scaled temperature or relative humidity") +
+    ylab("Percent cover")
+```
+
+Different taxa will have different optimal climates, different maximum percent covers, and different tolerances for climatic conditions away from their optimal climate (i.e. narrow or wider peaks in percent cover).
+
+The goal of our power analysis is to determine what sample size is necessary to accurately capture the climatic preferences of focal taxa under different representative scenarios of rarity versus commonness, climate specialist versus generalist, and patchily distributed taxa versus ubiquitous taxa.
+
+```{r}
+#| eval: false
+
+
+curve(1 / (1 + exp(-(10 -1 * (x - 3)^2))), from = 0, to = 6)
+
+
+f <- function(x) 10 - 1 * (x^2 - 6*x + 9)
+
+10 - 1 * x^2 -1 * (-6*x) - 1 * 9
+
+curve(1 / (1 + exp(-f(x))), from = 0, to = 6)
+
+brng <- seq(-10, 10, by = 4)
+bb <- expand.grid(b0 = brng, b1 = brng, b2 = brng)
+bb <- bb[bb$b2 < 0]
+
+
+
+# 
+
+
+
+pspace <- lapply(1:nrow(bb), function(i) {
+    b0 <- bb[i, "b0"]
+    b1 <- bb[i, "b1"]
+    b2 <- bb[i, "b2"]
+    
+    p <- 1 / (1 + exp(-(b0 + b1 * x + b2 * x^2)))
+    
+    data.frame(b0 = b0, b1 = b1, b2 = b2, 
+               x = x, y = y)
+})
+
+pspace <- do.call(rbind, pspace)
+
+# ggplot(pspace[pspace$b2 < 0, ], 
+#        aes(x = x, y = y, color = b2)) +
+#     geom_point() + 
+#     scale_color_viridis_c() +
+#     facet_wrap(~b0 + b1, nrow = 3, dir = "v")
+
+
+ggplot(pspace[pspace$b2 < 0, ], 
+       aes(x = x, y = y, color = b0)) +
+    geom_point() + 
+    scale_color_viridis_c() +
+    facet_wrap(~b1 + b2, nrow = 3, dir = "v")
+
+
+# break ----
+
+library(VGAM)
+
+size <- 100  
+nn <- 58
+zdata <- data.frame(pstr0 = logitlink(2, inverse = TRUE),
+                    x = runif(nn),
+                    sv = rep(size, length = nn))
+zdata$mubin <- logitlink(-1 + 2 * zdata$x, inverse = TRUE)
+zdata$y <- rzibinom(nn, 
+                    size = zdata$sv, 
+                    prob = zdata$mubin, 
+                    pstr0 = zdata$pstr0)
+
+
+plot(zdata$mubin, zdata$y / zdata$sv)
+fit <- vglm(cbind(y, sv - y) ~ x, zibinomialff, data = zdata)
+
+
+summary(fit)
+```
