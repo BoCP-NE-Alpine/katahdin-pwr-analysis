@@ -85,6 +85,31 @@ Different taxa will have different optimal climates, different maximum percent c
 
 The goal of our power analysis is to determine what sample size is necessary to accurately capture the climatic preferences of focal taxa under different representative scenarios of rarity versus commonness, climate specialist versus generalist, and patchily distributed taxa versus ubiquitous taxa.
 
+We will model the patchiness of taxa via a zero inflated binomial distribution. The below figure shows the difference between a patchy spatial distribution and a ubiquitous spatial distribution. 
+
+
+```{r}
+#| echo: false
+
+size <- 100  
+nn <- 58
+zdata <- data.frame(pstr0 = logitlink(2, inverse = TRUE),
+                    x = runif(nn),
+                    sv = rep(size, length = nn))
+zdata$mubin <- logitlink(-1 + 2 * zdata$x - 2 * zdata$x, inverse = TRUE)
+
+zdata$y <- rzibinom(nn, 
+                    size = zdata$sv, 
+                    prob = zdata$mubin, 
+                    pstr0 = zdata$pstr0)
+
+
+plot(zdata$x, zdata$y / zdata$sv)
+
+```
+
+
+
 ```{r}
 #| eval: false
 
