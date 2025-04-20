@@ -91,20 +91,34 @@ We will model the patchiness of taxa via a zero inflated binomial distribution. 
 ```{r}
 #| echo: false
 
-size <- 100  
-nn <- 58
-zdata <- data.frame(pstr0 = logitlink(2, inverse = TRUE),
-                    x = runif(nn),
+# function to make zero inflated binomial data
+zbdata <- function(x1, x2, r0, size, a0, a1, a2, b1, b2) {
+    nn <- length(x1)
+    zdata <- data.frame(pstr0 = logitlink(2, inverse = TRUE),
+                    x1 = x1,
+                    x2 = x2,
                     sv = rep(size, length = nn))
-zdata$mubin <- logitlink(-1 + 2 * zdata$x - 2 * zdata$x, inverse = TRUE)
+    zdata$mubin <- logitlink(a0 + a1 * x1 - a2 * x1^2 + b1 * x2 - b2 * x2^2, inverse = TRUE)
 
-zdata$y <- rzibinom(nn, 
+    zdata$y <- rzibinom(nn, 
                     size = zdata$sv, 
                     prob = zdata$mubin, 
                     pstr0 = zdata$pstr0)
 
+    return(zdata)
+}
 
-plot(zdata$x, zdata$y / zdata$sv)
+# vectors of params for different scenarios 
+
+splst_u <- c(2, -1, 2, 2, 2, 2)
+splst_r <- c(0, -1, 2, 2, 2, 2)
+gnlst_u <- c(2, -1, 2, 2, 2, 2) # change
+gnlst_r <- c(0, -1, 2, 2, 2, 2) # change
+
+names(splst_u) <- names(splst_u) <- names(splst_u) <- names(splst_u) <- c("r0", "a0", "a1", "a2", "b1", "b2")
+
+# data for strong climate response to strata, climate specialist, ubiquitous 
+dat_strg_splst_u <- zbdata(x1 =, x2=, r0=, size=, a0=, a1=, a2=, b1=, b2=)
 
 ```
 
