@@ -72,7 +72,7 @@ pfun <- function(x, b0, b1, b2) {
 
 x <- d1$tmp
 
-ideal_response <- data.frame(s = d1$s, x = x, p = pfun(x, 0, 3, -6))
+ideal_response <- data.frame(s = d1$s, x = x, p = pfun(x, 0, 0.05, -0.1))
 
 ggplot(ideal_response, aes(x = x, y = p, color = s)) +
     geom_point() +
@@ -83,7 +83,7 @@ ggplot(ideal_response, aes(x = x, y = p, color = s)) +
 
 Different taxa will have different optimal climates, different maximum percent covers, and different tolerances for climatic conditions away from their optimal climate (i.e. narrow or wider peaks in percent cover).
 
-The goal of our power analysis is to determine what sample size is necessary to accurately capture the climatic preferences of focal taxa under different representative scenarios of rarity versus commonness, climate specialist versus generalist, and patchily distributed taxa versus ubiquitous taxa.
+The goal of our power analysis is to determine what sample size is necessary to accurately capture the climatic preferences of focal taxa under different representative scenarios of rarity versus commonness, climate specialist versus generalist, and patchily distributed taxa versus ubiquitous taxa. We use "generalist" in the sense that the taxon still has an optimal climate but is also able to grow decently well in non-optimal local climates.
 
 We will model the patchiness of taxa via a zero inflated binomial distribution. The below figure shows the difference between a patchy spatial distribution and a ubiquitous spatial distribution. 
 
@@ -94,31 +94,46 @@ We will model the patchiness of taxa via a zero inflated binomial distribution. 
 # function to make zero inflated binomial data
 zbdata <- function(x1, x2, r0, size, a0, a1, a2, b1, b2) {
     nn <- length(x1)
-    zdata <- data.frame(pstr0 = logitlink(2, inverse = TRUE),
-                    x1 = x1,
-                    x2 = x2,
-                    sv = rep(size, length = nn))
-    zdata$mubin <- logitlink(a0 + a1 * x1 - a2 * x1^2 + b1 * x2 - b2 * x2^2, inverse = TRUE)
-
+    
+    zdata <- data.frame(pstr0 = logitlink(r0, inverse = TRUE),
+                        x1 = x1,
+                        x2 = x2,
+                        sv = rep(size, length = nn))
+    
+    zdata$mubin <- logitlink(a0 + a1 * x1 - a2 * x1^2 + 
+                                 b1 * x2 - b2 * x2^2, 
+                             inverse = TRUE)
+    
     zdata$y <- rzibinom(nn, 
-                    size = zdata$sv, 
-                    prob = zdata$mubin, 
-                    pstr0 = zdata$pstr0)
-
+                        size = zdata$sv, 
+                        prob = zdata$mubin, 
+                        pstr0 = zdata$pstr0)
+    
     return(zdata)
 }
 
-# vectors of params for different scenarios 
+# data.frame of params for different scenarios 
+pars <- matrix(c(2, -1, 3, 6, 3, 6, 
+                 0, -1, 3, 6, 3, 6, 
+                 2, -1, 0.05, 0.1, 0.05, 0.1, 
+                 0, -1, 0.05, 0.1, 0.05, 0.1), 
+               byrow = TRUE, nrow = 4) |> 
+    as.data.frame()
 
-splst_u <- c(2, -1, 2, 2, 2, 2)
-splst_r <- c(0, -1, 2, 2, 2, 2)
-gnlst_u <- c(2, -1, 2, 2, 2, 2) # change
-gnlst_r <- c(0, -1, 2, 2, 2, 2) # change
+names(pars) <- c("r0", "a0", "a1", "a2", "b1", "b2")
 
-names(splst_u) <- names(splst_u) <- names(splst_u) <- names(splst_u) <- c("r0", "a0", "a1", "a2", "b1", "b2")
+pars <- cbind(abund_scenario = c("splst_u", 
+                                 "splst_r", 
+                                 "gnlst_u", 
+                                 "gnlst_r"), 
+              pars)
+
+
 
 # data for strong climate response to strata, climate specialist, ubiquitous 
-dat_strg_splst_u <- zbdata(x1 =, x2=, r0=, size=, a0=, a1=, a2=, b1=, b2=)
+dat_strg_splst_u <- zbdata(x1 = d1$tmp, x2 = d1$rh, 
+                           r0 = , size=, 
+                           a0=, a1=, a2=, b1=, b2=)
 
 ```
 
