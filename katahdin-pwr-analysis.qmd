@@ -3,6 +3,8 @@ title: "Katahdin power analysis"
 format: pdf
 ---
 
+The purpose of this power analysis is to determine sufficient sample size on Katahdin. To do this, we will use as response variable the percent cover of hypothetical exemplar taxa.  We will assume these hypothetical taxa have a climatic optimum where their percent cover peaks.  We will deam sample size sufficient if that sample size has adequit power to detect the climatic optimum. 
+
 ## Relationship between strata and climate variables
 
 We will consider two climate variables: temperature (`tmp`) and relative humidity (`rh`). There are 16 strata and we will investigate two different scenarios:
@@ -37,8 +39,8 @@ clm_strata <- function(b_tmp, b_rh, sd, n) {
 d1 <- clm_strata(b_tmp = 2, b_rh = -2, sd = 2, n = 4)
 d2 <- clm_strata(b_tmp = 0.5, b_rh = -0.5, sd = 2, n = 4)
 
-d1$scenario <- "strong response"
-d2$scenario <- "weaker response"
+d1$scenario <- "strong correlation"
+d2$scenario <- "weaker correlation"
 d <- rbind(d1, d2)
 
 p_tmp <- ggplot(d, aes(x = s, y = tmp, color = s)) +
@@ -66,6 +68,9 @@ We will assume there is an optimal climate for the taxon where its percent cover
 
 
 ```{r}
+#| echo: false
+
+
 pfun <- function(x, b0, b1, b2) {
     1 / (1 + exp(-(b0 + b1 * x + b2 * x^2)))
 }
@@ -78,7 +83,8 @@ ggplot(ideal_response, aes(x = x, y = p * 100, color = s)) +
     geom_point() +
     scale_color_viridis_c(name = "Strata") +
     xlab("Scaled temperature or relative humidity") +
-    ylab("Percent cover")
+    ylab("Percent cover") +
+    ylim(0, 90)
 ```
 
 Different taxa will have different optimal climates, different maximum percent covers, and different tolerances for climatic conditions away from their optimal climate (i.e. narrow or wider peaks in percent cover).
@@ -115,10 +121,10 @@ zbdata <- function(x1, x2, r0, size, a0, a1, a2, b1, b2) {
 }
 
 # data.frame of params for different scenarios 
-pars <- matrix(c(-2, 2, 0.5, 4, 0.5, 4, 
-                 1, 1, 0.5, 4, 0.5, 4, 
-                 -2, 0.5, 0.05, 0.1, 0.05, 0.1, 
-                 1, 0.25, 0.05, 0.1, 0.05, 0.1), 
+pars <- matrix(c(-1, 2,    0.5,  4,   0.5,  4, 
+                  0.75, 1,    0.5,  4,   0.5,  4, 
+                 -1, 0.5,  0.05, 0.1, 0.05, 0.1, 
+                  0.75, 0.25, 0.05, 0.1, 0.05, 0.1), 
                byrow = TRUE, nrow = 4) |> 
     as.data.frame()
 
@@ -198,17 +204,24 @@ The below figure shows how statistical power increases with the number of sample
 
 # function to generate a simulated full data set including climate-strata 
 # relationship and percent covers, fit model, compute LRT p-val
-#' @param n is number of replicates per stratum
+#' @param n is the total number of replicates on the peak,these will be 
+#'          evenly spread across strata
 #' @param ncore is number of cores to use in multithreaded simulation
 #' @param B is number of simulation replicates for calculating power
 
 full_sim <- function(n, ncore = 8, B = 500) {
     # o <- lapply(1:B, function(i) {
+    nstrat <- ceiling(n / 16) # `n` divided by number of strata
+    
     o <- parallel::mclapply(1:B, mc.cores = ncore, function(i) {
-        d1 <- clm_strata(b_tmp = 2, b_rh = -2, sd = 2, n = n)
-        d2 <- clm_strata(b_tmp = 0.5, b_rh = -0.5, sd = 2, n = n)
+        d1 <- clm_strata(b_tmp = 2, b_rh = -2, sd = 2, n = nstrat)
+        d2 <- clm_strata(b_tmp = 0.5, b_rh = -0.5, sd = 2, n = nstrat)
         
-        dat <- sim_dat(d1, d2)
+        # `nstrat * 16` is likely to be greater than `n` so we need to keep only `n` 
+        # and we need to do that randomly 
+        istay <- sample(nstrat * 16, n)
+        
+        dat <- sim_dat(d1[istay, ], d2[istay, ])
         
         pvals <- sapply(unique(dat$scenario), function(s) {
             this_dat <- dat[dat$scenario == s, ]
@@ -230,7 +243,7 @@ full_sim <- function(n, ncore = 8, B = 500) {
             }
         })
         
-        return(pvals < 0.05)
+        return(pvals <= 0.05)
     })
     
     o <- do.call(rbind, o)
@@ -241,9 +254,8 @@ full_sim <- function(n, ncore = 8, B = 500) {
 }
 
 # now we can simulate across different sample sizes
-nn <- 1:6
-
-pwr <- lapply(nn, full_sim, B = 100)
+nn <- seq(16, 86, by = 14)
+pwr <- lapply(nn, full_sim, B = 200)
 
 # data.frame for plotting
 final_pwr <- data.frame(n = rep(nn, each = length(pwr[[1]])), 
@@ -258,22 +270,28 @@ final_pwr <- cbind(final_pwr, conditions)
 # plotting 
 lab_map <- c(r = "Patchy",
              u = "Ubiquitous", 
-             senv = "Strong env corr", 
-             wenv = "Weaker env corr")
+             senv = "Strong climate cor", 
+             wenv = "Weaker climate cor")
 
 ggplot(final_pwr, aes(x = n, y = power, color = niche)) +
     geom_hline(yintercept = 0.8) + 
+    geom_vline(xintercept = 58) + 
     geom_point() +
     geom_line() + 
     xlab("Sample size per stratum") +
     ylab("Statistical power") +
+    scale_x_continuous(breaks = nn) + 
     scale_color_manual(labels = c("Wide", "Narrow"), 
                        values = scales::hue_pal()(2)) +
     facet_grid(rows = vars(env), cols = vars(spatial), 
                labeller = labeller(env = lab_map[2:4], 
                                    spatial = lab_map[1:2])) +
     theme(panel.grid.major.y = element_blank(), 
-          panel.grid.minor.y = element_blank())
+          panel.grid.minor = element_blank())
 ```
 
-The horizonal black line shows the 0.8 power cuttoff.  This is a commonly used cuttoff for determining sufficient sample size.  What we see is that it takes a minimum of 4 replicates under all combinations of conditions to reach 0.8 power.  4 replicates per stratum leads precisely to our proposed sample size of `r 4 * 16`
+The horizontal black line shows the 0.8 power cutoff.  This is a commonly used cutoff for determining sufficient sample size. The vertical black line is our proposed sample size of 58.  What we see is that 58 samples is close, if not exactly, the minimum number of points we need to reach a power of 0.8 across all combinations of conditions. 
+
+Interestingly enough, the strength of correlation between local climate and strata has effectively no impact on power. This is a very positive outcome because we do cannot know precisely what the correlation is between strata and climate *a priori*, but our power analysis indicates that this uncertainty is not detrimental to our study design. 
+
+
