@@ -182,7 +182,9 @@ What we can see is that the patchy taxon still peaks at the same climate optimum
 
 ## Power analysis for relationship between focal taxa and climate
 
-Now we investigate our statistical power to detect a response of the percent cover of a focal taxon to local climate variation, and how that power changes with number of sampling sites.  To recap, we are investigating 8 scenarios coming from all unique combinations of the following conditions:
+Now we investigate our statistical power to detect a response of the percent cover of a focal taxon to local climate variation, and how that power changes with number of sampling sites.  We will investigate sample sizes ranging from 16 to 86.  Sample sites are evenly spread across strata so that each stratum has nearly equal representation.  
+
+To recap, across those various sample sizes, we are investigating 8 scenarios coming from all unique combinations of the following conditions:
 
 - *Variation in climate across strata*: 
     1. temperature and relative humidity have strong correlation with strata 
